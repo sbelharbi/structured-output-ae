@@ -9,7 +9,7 @@ published research project.
 
 This code is a Theano based implementation (Python 2.7). To run it, you must 
 install Theano and its dependencies (numpy, matplotlib, ...). Octave and oct2py
-are needed needed for the evaluation.
+are needed for the evaluation.
 
 Before running the code, you need to download the data by running the script
 sop_embed/download_face_data.sh.
