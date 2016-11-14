@@ -10,6 +10,7 @@ function [ error_per_image ] = compute_error_ibug( ground_truth_all, detected_po
 %   Output:
 %          error_per_image, size: num_of_images x 1
 
+% Source: http://ibug.doc.ic.ac.uk/media/uploads/competitions/compute_error.m
 
 num_of_images = size(ground_truth_all,3);
 num_of_points = size(ground_truth_all,1);
