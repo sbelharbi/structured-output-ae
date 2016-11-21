@@ -1,8 +1,9 @@
 # Structured output auto-encoders: an application to facial landmark detection
 This repository contains the code used for the paper: 
 
-"Structured output auto-encoders: an application to facial landmark detection",
-S.Belharbi, C.Chatelain, R.Hérault, S.Adam. ArXiv 2016.
+"A regularization scheme for structured output problems: an application to
+facial landmark detection", S.Belharbi, C.Chatelain, R.Hérault,
+S.Adam. [ArXiv 2016](https://arxiv.org/abs/1504.07550).
 
 Please cite this paper if you use the code in this repository as part of a
 published research project.
