@@ -1,4 +1,4 @@
-# Structured output auto-encoders: an application to facial landmark detection
+# A regularization scheme for structured output problems: an application to facial landmark detection
 This repository contains the code used for the paper: 
 
 "A regularization scheme for structured output problems: an application to
