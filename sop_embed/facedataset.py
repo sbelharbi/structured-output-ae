@@ -1,26 +1,3 @@
-# -*- coding: utf-8 -*-
-
-#    Copyright (c) 2016 Soufiane Belharbi, Clément Chatelain,
-#    Romain Hérault, Sébastien Adam (LITIS - EA 4108).
-#    All rights reserved.
-#
-#   This file is part of structured-output-ae.
-#
-#    structured-output-ae is free software: you can redistribute it and/or
-#    modify it under the terms of the Lesser GNU General Public License as
-#    published by the Free Software Foundation, either version 3 of the
-#    License, or (at your option) any later version.
-#
-#    structured-output-ae is distributed in the hope that it will be useful,
-#    but WITHOUT ANY WARRANTY; without even the implied warranty of
-#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#    GNU Lesser General Public License for more details.
-#
-#    You should have received a copy of the GNU General Public License
-#    along with structured-output-ae.
-#    If not, see <http://www.gnu.org/licenses/>.
-
-
 from __future__ import division
 
 import pickle as pkl
@@ -38,6 +15,8 @@ import sys
 from scipy.integrate import simps, trapz
 from oct2py import octave
 
+# from sop_embed.convnetskeras.convnets import convnet
+from keras.optimizers import SGD
 
 floating = 6
 prec2 = "%."+str(floating)+"f"
@@ -48,6 +27,19 @@ corruption_level = 0.01  # For data augmentation
 class FaceDataset(object):
     def __init__(self):
         pass
+
+    def create_ft_extractor(self, type_mod, weights_path):
+        """Extract the features from x using a convnet model."""
+#        model = convnet(type_mod, weights_path=weights_path, heatmap=False,
+#                        W_regularizer=None,
+#                        activity_regularizer=None,
+#                        dense=False)
+#        sgd = SGD(lr=0.1, decay=1e-6, momentum=0.9, nesterov=True)
+#        model.compile(optimizer=sgd, loss="mse")
+#        print "Summary:", model.summary()
+        model = None
+
+        return model
 
     def debug_plot_over_img(self, img, x, y, bb_d, bb_gt):
         """Plot the landmarks over the image with the bbox."""
@@ -75,10 +67,7 @@ class FaceDataset(object):
         fig = plt.figure(frameon=False)  # , figsize=(15, 10.8), dpi=200
         ax = plt.Axes(fig, [0., 0., 1., 1.])
         ax.set_axis_off()
-        if len(img.shape) == 3:
-            ax.imshow(cv2.cvtColor(img, cv2.COLOR_BGR2RGB), aspect="auto")
-        else:
-            ax.imshow(img, aspect="auto", cmap=cm.Greys_r)
+        ax.imshow(cv2.cvtColor(img, cv2.COLOR_BGR2RGB), aspect="auto")
         ax.scatter(x, y, s=10, color='r')
         ax.scatter(x_pr, y_pr, s=10, color='g')
         rect = patches.Rectangle(
@@ -89,19 +78,46 @@ class FaceDataset(object):
 
         return fig
 
-    def plot_over_img_seg(self, img, x, y, x_pr, y_pr, bb_gt):
+    def plot_over_img_seg(self, img, x, y, x_pr, y_pr, bb_gt, tag_oc=None):
         """Plot the landmarks over the image with the bbox."""
         plt.close("all")
         fig = plt.figure(frameon=False)  # , figsize=(15, 10.8), dpi=200
         ax = plt.Axes(fig, [0., 0., 1., 1.])
         ax.set_axis_off()
-        # ax.imshow(cv2.cvtColor(img, cv2.COLOR_BGR2RGB), aspect="auto")
-        if len(img.shape) == 3:
-            ax.imshow(cv2.cvtColor(img, cv2.COLOR_BGR2RGB), aspect="auto")
-        else:
-            ax.imshow(img, aspect="auto", cmap=cm.Greys_r)
+        bb_gt = [int(xx) for xx in bb_gt]
+        hight, width = bb_gt[3]-bb_gt[1], bb_gt[2]-bb_gt[0]
+        if tag_oc is None:
+            img_oc = copy.deepcopy(img)
+        elif tag_oc is "left":
+            img_oc = copy.deepcopy(img)
+            p = int((20/50.) * width)  # we took only 20 pixels from 50.
+            img_oc[bb_gt[1]:bb_gt[3],
+                   bb_gt[0]:bb_gt[0]+p, :] = np.uint8(255/2.)
+        elif tag_oc is "right":
+            img_oc = copy.deepcopy(img)
+            p = int((20/50.) * width)  # we took only 20 pixels from 50.
+            img_oc[bb_gt[1]:bb_gt[3],
+                   bb_gt[2]-p:bb_gt[2], :] = np.uint8(255/2.)
+        elif tag_oc is "up":
+            img_oc = copy.deepcopy(img)
+            p = int((20/50.) * hight)  # we took only 20 pixels from 50.
+            img_oc[bb_gt[1]:bb_gt[1]+p,
+                   bb_gt[0]:bb_gt[2], :] = np.uint8(255/2.)
+        elif tag_oc is "down":
+            img_oc = copy.deepcopy(img)
+            p = int((20/50.) * hight)  # we took only 20 pixels from 50.
+            img_oc[bb_gt[3]-p:bb_gt[3],
+                   bb_gt[0]:bb_gt[2], :] = np.uint8(255/2.)
+        elif tag_oc is "middle":
+            img_oc = copy.deepcopy(img)
+            p1 = int((15/50.) * hight)  # we took only from 15 pixels from 50.
+            p2 = int((35/50.) * hight)  # we took only to 35 pixels from 50.
+            img_oc[bb_gt[1]+p1:bb_gt[1]+p2,
+                   bb_gt[0]:bb_gt[2], :] = np.uint8(255/2.)
+        ax.imshow(cv2.cvtColor(img_oc, cv2.COLOR_BGR2RGB), aspect="auto")
         for i in xrange(68):
             ax.plot([x[i], x_pr[i]], [y[i], y_pr[i]], '-r')
+
         fig.add_axes(ax)
 
         return fig
@@ -269,7 +285,8 @@ class FaceDataset(object):
 
         return np.asarray(l_nrmse), out
 
-    def calculate_face_errors_octave(self, pred, l_infos, w, h, seg=False):
+    def calculate_face_errors_octave(self, pred, l_infos, w, h, seg=False,
+                                     tags_oc=None):
         octave.addpath("../")
         l_nrmse = []
         out = []
@@ -311,7 +328,7 @@ class FaceDataset(object):
         l_nrmse = octave.compute_error_ibug(y_reshaped, model_output_reshaped)
         for i in range(saved_pred.shape[0]):
             el = l_infos[i]
-            img_rgb = el["im_gray"]
+            img_rgb = el["im_rgb"]
             img_name = el["im_name"]
             annox, annoy = el["annox"], el["annoy"]
             d_eyes, bb_gt = el["d_eyes"], el["bb_gt"]
@@ -334,9 +351,12 @@ class FaceDataset(object):
             y_pred += y1
 
             nrmse = l_nrmse[i]
+            tag_oc = None
+            if tags_oc is not None:
+                tag_oc = tags_oc[i]
             if seg:
                 fig = self.plot_over_img_seg(img_rgb, annox, annoy, x_pred,
-                                             y_pred, bb_gt)
+                                             y_pred, bb_gt, tag_oc=tag_oc)
             else:
                 fig = self.plot_over_img(img_rgb, annox, annoy, x_pred,
                                          y_pred, bb_gt)
@@ -549,6 +569,8 @@ class FaceDataset(object):
                    type_mod=None, weights_path=None, color_mode=None):
         """xys: number of samples (x,y) in package."""
         ft_extract = None
+        if type_mod is not None:
+            ft_extract = self.create_ft_extractor(type_mod, weights_path)
         xys = int(xys)
         xy_data, x_data, y_data = self.get_data(list_samples, xy, x, y)
         xy_chunks = self.chunks(xy_data, xys)
@@ -619,6 +641,8 @@ class FaceDataset(object):
     def prapere_valid(self, list_samples, fd_out, w, h, d=10,
                       type_mod=None, weights_path=None, color_mode=None):
         ft_extract = None
+        if type_mod is not None:
+            ft_extract = self.create_ft_extractor(type_mod, weights_path)
         x, y = self.sample_from_list(list_samples, w, h, d, color_mode,
                                      ft_extract)
         if type_mod is None:
@@ -674,7 +698,24 @@ if __name__ == "__main__":
         color_mode = None
         type_mod = None
         weights_path = None
-
+        if type_mod is "alexnet":
+            weights_path = "../inout/weights/alexnet_weights.h5"
+            new_size = [227, 227]
+            color_mode = "rgb"
+        if type_mod is "vgg_16":
+            weights_path = "../inout/weights/vgg16_weights.h5"
+            new_size = [224, 224]
+            color_mode = "bgr"
+        if type_mod is "vgg_19":
+            weights_path = "../inout/weights/vgg19_weights.h5"
+            new_size = [224, 224]
+            color_mode = "bgr"
+        if type_mod is "googlenet":
+            weights_path = "../inout/weights/googlenet_weights.h5"
+            new_size = [224, 224]
+            color_mode = "bgr"
+        if color:
+            w, h = new_size[0], new_size[1]
         d = 0
         with open(path_lfpw_tr, 'r') as f:
             lfpw_all_tr = pkl.load(f)

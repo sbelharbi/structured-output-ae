@@ -1,37 +1,14 @@
-# -*- coding: utf-8 -*-
-
-#    Copyright (c) 2016 Soufiane Belharbi, Clément Chatelain,
-#    Romain Hérault, Sébastien Adam (LITIS - EA 4108).
-#    All rights reserved.
-#
-#   This file is part of structured-output-ae.
-#
-#    structured-output-ae is free software: you can redistribute it and/or
-#    modify it under the terms of the Lesser GNU General Public License as
-#    published by the Free Software Foundation, either version 3 of the
-#    License, or (at your option) any later version.
-#
-#    structured-output-ae is distributed in the hope that it will be useful,
-#    but WITHOUT ANY WARRANTY; without even the implied warranty of
-#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#    GNU Lesser General Public License for more details.
-#
-#    You should have received a copy of the GNU General Public License
-#    along with structured-output-ae.
-#    If not, see <http://www.gnu.org/licenses/>.
-
-
 # Based on: https://github.com/caglar/autoencoders.git
 # http://www-etud.iro.umontreal.ca/~gulcehrc/
-# Modified by: Soufiane Belharbi
-
-
 import theano
 import theano.tensor as T
 from theano.tensor.shared_randomstreams import RandomStreams
 
 from layer import AEHiddenLayer, AEOutputLayer
-from tools import NonLinearity, CostType, relu
+# from tools import NonLinearity, CostType, relu
+from sop_embed.extra import relu
+from sop_embed.extra import NonLinearity
+from sop_embed.extra import CostType
 import numpy as np
 import cPickle as pkl
 
@@ -75,7 +52,7 @@ class Autoencoder(object):
         self.gparams = None
         self.reverse = reverse
         self.activation = self.get_non_linearity_fn()
-        self.catched_params = {}
+        self.catched_params = []
 
         if cost_type == CostType.MeanSquared:
             self.cost_type = CostType.MeanSquared
@@ -148,8 +125,9 @@ class Autoencoder(object):
             self.x = T.matrix('x_input', dtype=theano.config.floatX)
 
     def catch_params(self):
+        self.catched_params = []
         for param in self.params:
-            self.catched_params[param.name] = param.get_value()
+            self.catched_params.append(param.get_value())
 
     def nonlinearity_fn(self, d_in=None, recons=False):
         if self.nonlinearity == NonLinearity.SIGMOID:
@@ -349,9 +327,9 @@ class Autoencoder(object):
     def save_params(self, weights_file, catched=False):
         """Save the model's parameters."""
         f_dump = open(weights_file, "w")
-        params_vls = {}
+        params_vls = []
         if catched:
-            if self.catched_params != {}:
+            if self.catched_params != []:
                 params_vls = self.catched_params
             else:
                 raise ValueError(
@@ -359,7 +337,7 @@ class Autoencoder(object):
                     "but you didn't catch any!!!!!!!")
         else:
             for param in self.params:
-                params_vls[param.name] = param.get_value()
+                params_vls.append(param.get_value())
         pkl.dump(params_vls, f_dump, protocol=pkl.HIGHEST_PROTOCOL)
         f_dump.close()
 
@@ -367,8 +345,8 @@ class Autoencoder(object):
         """Set the values of the parameters."""
         with open(weights_file, 'r') as f:
             params_vls = pkl.load(f)
-            for param in self.params:
-                param.set_value(params_vls[param.name])
+            for param, val in zip(self.params, params_vls):
+                param.set_value(val)
 
     def fit(self,
             data=None,

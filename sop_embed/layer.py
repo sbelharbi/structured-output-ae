@@ -1,31 +1,5 @@
-# -*- coding: utf-8 -*-
-
-#    Copyright (c) 2016 Soufiane Belharbi, Clément Chatelain,
-#    Romain Hérault, Sébastien Adam (LITIS - EA 4108).
-#    All rights reserved.
-#
-#   This file is part of structured-output-ae.
-#
-#    structured-output-ae is free software: you can redistribute it and/or
-#    modify it under the terms of the Lesser GNU General Public License as
-#    published by the Free Software Foundation, either version 3 of the
-#    License, or (at your option) any later version.
-#
-#    structured-output-ae is distributed in the hope that it will be useful,
-#    but WITHOUT ANY WARRANTY; without even the implied warranty of
-#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#    GNU Lesser General Public License for more details.
-#
-#    You should have received a copy of the GNU General Public License
-#    along with structured-output-ae.
-#    If not, see <http://www.gnu.org/licenses/>.
-
-
 # Based on: https://github.com/caglar/autoencoders.git
 # http://www-etud.iro.umontreal.ca/~gulcehrc/
-# Modified by: Soufiane Belharbi
-
-
 from __future__ import division
 import numpy as np
 import theano
@@ -78,7 +52,7 @@ class Layer(object):
             self.W = theano.shared(value=W_values, name='W', borrow=True)
 
         if self.b is None:
-            b_values = np.zeros((self.n_out/self.num_pieces),
+            b_values = np.zeros(int(self.n_out/self.num_pieces),
                                 dtype=theano.config.floatX)
             self.b = theano.shared(value=b_values, name='b', borrow=True)
 
@@ -223,7 +197,7 @@ class AEHiddenLayer(Layer):
                 b_values = np.zeros((n_out_dec), dtype=theano.config.floatX)
             else:
                 b_values = np.zeros(
-                    (self.n_in/num_pieces), dtype=theano.config.floatX)
+                    int(self.n_in/num_pieces), dtype=theano.config.floatX)
 
             self.b_prime = theano.shared(value=b_values, name="b_prime")
 

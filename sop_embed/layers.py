@@ -1,37 +1,13 @@
-# -*- coding: utf-8 -*-
-
-#    Copyright (c) 2016 Soufiane Belharbi, Clément Chatelain,
-#    Romain Hérault, Sébastien Adam (LITIS - EA 4108).
-#    All rights reserved.
-#
-#   This file is part of structured-output-ae.
-#
-#    structured-output-ae is free software: you can redistribute it and/or
-#    modify it under the terms of the Lesser GNU General Public License as
-#    published by the Free Software Foundation, either version 3 of the
-#    License, or (at your option) any later version.
-#
-#    structured-output-ae is distributed in the hope that it will be useful,
-#    but WITHOUT ANY WARRANTY; without even the implied warranty of
-#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#    GNU Lesser General Public License for more details.
-#
-#    You should have received a copy of the GNU General Public License
-#    along with structured-output-ae.
-#    If not, see <http://www.gnu.org/licenses/>.
-
-
-import sys
-sys.path.insert(1, "../")
-
-
 from theano import tensor as T
 import theano
 import numpy
-from theano.tensor.signal import downsample
+from theano.tensor.signal import pool
+from theano.tensor.nnet import conv2d
 from theano.tensor.nnet import conv
+from theano.tensor.nnet import abstract_conv
 
 from sop_embed.layer import HiddenLayer
+from sop_embed.extra import get_non_linearity_fn
 
 
 def relu(x):
@@ -196,6 +172,145 @@ class DropoutHiddenLayer(HiddenLayer):
             self.output = dropout_from_layer(rng, self.output, p=dropout_rate)
 
 
+class ConvLayer(object):
+    def __init__(self, rng, input, filter_shape, image_shape, activation,
+                 padding, W=None, b=None, b_v=0., stride=(1, 1)):
+        """Implement a convolution layer. No pooling."""
+        assert image_shape[1] == filter_shape[1]
+        self.input = input
+        self.x = input
+        print filter_shape, "***********"
+        fan_in = numpy.prod(filter_shape[1:])
+        fan_out = (filter_shape[0] * numpy.prod(filter_shape[2:]))
+        # initialize weights with random weights
+        W_bound = numpy.sqrt(6. / (fan_in + fan_out))
+        if rng is None:
+            rng = numpy.random.RandomState(23455)
+        if W is None:
+            W = theano.shared(
+                numpy.asarray(
+                    rng.uniform(low=-W_bound, high=W_bound, size=filter_shape),
+                    dtype=theano.config.floatX
+                ),
+                name="w_conv",
+                borrow=True
+            )
+        if b is None:
+            b_v = (
+                numpy.ones(
+                    (filter_shape[0],)) * b_v).astype(theano.config.floatX)
+            b = theano.shared(value=b_v, name="b_conv", borrow=True)
+
+        self.W = W
+        self.b = b
+        conv_out = conv2d(
+            input=self.x,
+            filters=self.W,
+            input_shape=image_shape,
+            filter_shape=filter_shape,
+            border_mode=padding,
+            subsample=stride
+        )
+        linear = conv_out + self.b.dimshuffle('x', 0, 'x', 'x')
+        if activation is not None:
+            self.output = activation(linear)
+        else:
+            self.output = linear
+        self.params = [self.W, self.b]
+
+
+class PoolingLayer(object):
+    def __init__(self, input, poolsize, ignore_border, mode="max"):
+        """Implement a pooling layer."""
+        self.input = input
+        self.x = input
+        self.output = pool.pool_2d(
+            input=self.x,
+            ws=poolsize,
+            ignore_border=ignore_border,
+            mode=mode)
+        self.params = []
+
+
+class UnPoolingLayer(object):
+    def __init__(self, input, ratio, use_1D_kernel=False):
+        self.input = input
+        self.x = input
+        self.output = abstract_conv.bilinear_upsampling(
+            input=self.x,
+            ratio=ratio,
+            use_1D_kernel=use_1D_kernel)
+        self.params = []
+
+
+class DeepConvolutionLayer(object):
+    """A deep convolution network: convolution, pooling, convolution, pooling,
+    ... . Can use it to build Transposed convolution by using unpooling
+    instead of pooling."""
+    def __init__(self, input, layers, crop_size):
+        """crope_size = [Din, hight_img, width_img]"""
+        self.input = input
+        self.x = input
+        self.input_features_dim = crop_size
+        self.layers = []
+        self.params = []
+        tmp_in = self.x
+        nbr_f_in, h, w = crop_size[0], crop_size[1], crop_size[2]
+        image_shape = (None, crop_size[0], h, w)
+
+        for i in range(len(layers)):
+            layer = layers[i]
+            if layer["type"] == "conv":
+                print "output filter shape", layer["filter_shape"][0]
+                self.layers.append(ConvLayer(
+                    rng=layer["rng"],
+                    input=tmp_in,
+                    filter_shape=(layer["filter_shape"][0],
+                                  nbr_f_in,
+                                  layer["filter_shape"][1],
+                                  layer["filter_shape"][2]),
+                    image_shape=image_shape,
+                    activation=get_non_linearity_fn(layer["activation"]),
+                    padding=layer["padding"],
+                    W=layer["W"],
+                    b=layer["b"],
+                    b_v=layer["b_v"],
+                    stride=layer["stride"]))
+                self.params.extend(self.layers[-1].params)
+                tmp_in = self.layers[-1].output
+                nbr_f_in = layer["filter_shape"][0]
+
+                h = (h-layer["filter_shape"][1] + 2 * layer["padding"][0] + 1)
+                w = (w-layer["filter_shape"][2] + 2 * layer["padding"][1] + 1)
+#                if i < (len(layers) - 1):
+#                    assert layers[i+1]["type"] in ["upsample", "downsample"]
+            if layer["type"] == "downsample":
+                self.layers.append(PoolingLayer(
+                    input=tmp_in,
+                    poolsize=layer["poolsize"],
+                    ignore_border=layer["ignore_border"],
+                    mode=layer["mode"]))
+                self.params.extend(self.layers[-1].params)
+                tmp_in = self.layers[-1].output
+                # assert layers[i-1]["type"] in ["conv"]
+                h = h / layer["poolsize"][0]
+                w = w / layer["poolsize"][1]
+            if layer["type"] == "upsample":
+                self.layers.append(UnPoolingLayer(
+                    input=tmp_in,
+                    ratio=layer["ratio"],
+                    use_1D_kernel=layer["use_1D_kernel"]))
+                self.params.extend(self.layers[-1].params)
+                tmp_in = self.layers[-1].output
+                h = h * layer["ratio"]
+                w = w * layer["ratio"]
+            image_shape = (None, nbr_f_in, h, w)
+        # End building.
+        self.output_features_dim = [nbr_f_in, h, w]
+        self.output = self.layers[-1].output
+        self.output_size_flatten = nbr_f_in * h * w
+
+
 class LeNetConvPoolLayer(object):
     def __init__(self, rng, input, filter_shape, image_shape,
                  poolsize=(2, 2), maxout=False, poolmaxoutfactor=2,
@@ -268,7 +383,7 @@ class LeNetConvPoolLayer(object):
                     s = T.maximum(s, t)
             z = s
             if poolsize not in [None, (1, 1)]:
-                pooled_out = downsample.max_pool_2d(
+                pooled_out = pool.pool_2d(
                     input=z,
                     ds=poolsize,
                     ignore_border=True
@@ -278,7 +393,7 @@ class LeNetConvPoolLayer(object):
                 self.output = z
         else:
             if poolsize not in [None, (1, 1)]:
-                pooled_out = downsample.max_pool_2d(
+                pooled_out = pool.pool_2d(
                     input=conv_out,
                     ds=poolsize,
                     ignore_border=True

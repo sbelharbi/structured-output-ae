@@ -1,29 +1,4 @@
-# -*- coding: utf-8 -*-
-
-#    Copyright (c) 2016 Soufiane Belharbi, Clément Chatelain,
-#    Romain Hérault, Sébastien Adam (LITIS - EA 4108).
-#    All rights reserved.
-#
-#   This file is part of structured-output-ae.
-#
-#    structured-output-ae is free software: you can redistribute it and/or
-#    modify it under the terms of the Lesser GNU General Public License as
-#    published by the Free Software Foundation, either version 3 of the
-#    License, or (at your option) any later version.
-#
-#    structured-output-ae is distributed in the hope that it will be useful,
-#    but WITHOUT ANY WARRANTY; without even the implied warranty of
-#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#    GNU Lesser General Public License for more details.
-#
-#    You should have received a copy of the GNU General Public License
-#    along with structured-output-ae.
-#    If not, see <http://www.gnu.org/licenses/>.
-
-
-import sys
-sys.path.insert(1, "../../")
-
+from sop_embed.dataset import Dataset
 from sop_embed.tools import split_data_to_minibatchs_eval
 from sop_embed.tools import get_eval_fn
 from sop_embed.tools import evaluate_model
@@ -34,63 +9,24 @@ from sop_embed.facedataset import FaceDataset
 import theano.tensor as T
 import numpy as np
 import cPickle as pkl
+import sys
 import os
 import shutil
 import theano
 
+from Routines import Routines 
+ro = Routines()
 
-floating = 10
+
+floating = 2
 prec2 = "%."+str(floating)+"f"
 
 
-def unit_test(fd_imgs, w, h, path_mean_shap, eval_fn, ds):
-    with open(path_mean_shap, 'r') as f:
-        msh = pkl.load(f)
-    w_im = np.ones((w, h, 3), dtype=theano.config.floatX)
-    b_im = np.zeros((w, h, 3), dtype=theano.config.floatX)
-    # mean shape
-    x_pred = (msh[:68] + 0.5) * h
-    y_pred = (msh[68:] + 0.5) * w
-    bb_gt = [0, 0, w, h]
-    fig_w = ds.plot_over_img(w_im, x_pred, y_pred, x_pred, y_pred, bb_gt)
-    fig_b = ds.plot_over_img(b_im, x_pred, y_pred, x_pred, y_pred, bb_gt)
-    inp = np.empty((2, w*h), dtype=theano.config.floatX)
-    outp = np.empty((2, 68*2), dtype=theano.config.floatX)
-    inp[0, :] = w_im[:, :, 0].flatten()
-    inp[1, :] = b_im[:, :, 0].flatten()
-    [error_mn, output_mn] = eval_fn(inp, outp)
-    x_pred = (output_mn[0, :68] + 0.5) * h
-    y_pred = (output_mn[0, 68:] + 0.5) * w
-    fig_w_model = ds.plot_over_img(w_im, x_pred, y_pred, x_pred, y_pred,
-                                   bb_gt)
-    x_pred = (output_mn[1, :68] + 0.5) * h
-    y_pred = (output_mn[1, 68:] + 0.5) * w
-    fig_b_model = ds.plot_over_img(b_im, x_pred, y_pred, x_pred, y_pred,
-                                   bb_gt)
-
-    if not os.path.exists(fd_imgs):
-        os.makedirs(fd_imgs)
-    fig_w.savefig(fd_imgs + "msh_w.png", bbox_inches='tight', pad_inches=0)
-    fig_b.savefig(fd_imgs + "msh_b.png", bbox_inches='tight', pad_inches=0)
-    fig_w_model.savefig(fd_imgs + "model_w.png", bbox_inches='tight',
-                        pad_inches=0)
-    fig_b_model.savefig(fd_imgs + "model_b.png", bbox_inches='tight',
-                        pad_inches=0)
-
-
-def evaluate_mean_shape(path_mean_shap, l_infos, w, h, y, save_ims=False):
+def evaluate_mean_shape(path_mean_shap, l_infos, w, h, save_ims=False):
     with open(path_mean_shap, 'r') as f:
         mean_shape = pkl.load(f)
-    if y is None:
-        output = np.empty((len(l_infos), 68*2), dtype=theano.config.floatX)
-    else:
-        output = np.empty((y.shape[0], 68*2), dtype=theano.config.floatX)
+    output = np.empty((len(l_infos), 68*2), dtype=theano.config.floatX)
     output[:, :] = mean_shape
-    # MSE:
-    if y is not None:
-        mse = np.mean(np.mean(np.power(output - y, 2), axis=1))
-        print "Error (MSE) mean shape", mse
-        return 0, 0, 0
     # Calculate the face errors: CDF0.1, AUC
     l_nrmse, figs = ds.calculate_face_errors_octave(output, l_infos, w, h)
     cdf, cdf0_1, auc = ds.calculate_auc_cdf(l_nrmse, bx, dx)
@@ -127,22 +63,31 @@ def evaluate_mean_shape(path_mean_shap, l_infos, w, h, y, save_ims=False):
 
 if __name__ == "__main__":
     faceset = "lfpw"
-    fd_data = "../../inout/data/face/"
+    fd_data = "../../inout/data/face/color/"
     path_test = fd_data + faceset + "_ts.pkl"
     path_mean_shap = "../../inout/data/face/" + faceset +\
         "_data/mean_shape.pkl"
     w, h = 50, 50
     bx, dx = 0.5, 0.001
     border_x = bx
-    with open(path_test, 'r') as f:
-        l_samples = pkl.load(f)
+#    with open(path_test, 'r') as f:
+#        l_samples = pkl.load(f)
     input = T.fmatrix("x_input")
     output = T.fmatrix("y_output")
 
     ds = FaceDataset()
-    x, y, l_infos = ds.sample_from_list_to_test(l_samples, w, h)
+#    x, y, l_infos = ds.sample_from_list_to_test(l_samples, w, h)
     ts_batch_size = 1000
-
+    with open("../../inout/data/face/"+faceset+"_data/test.pkl", 'r') as fx:
+        dumped = pkl.load(fx)
+    with open("../../inout/data/face/"+faceset+"_data/valid.pkl", 'r') as fx:
+        dumped_vl = pkl.load(fx)
+    x = dumped["x"]
+    y = dumped["y"]
+    nfids = dumped["nfids"]
+    bboxesT = dumped["bboxesT"]
+    bboxesT_original = dumped["bboxesT_original"]
+    base_name = dumped["base_name"]
     list_minibatchs_vl = split_data_to_minibatchs_eval(
         {"x": x, "y":  y}, ts_batch_size)
     fold_exp = "../../exps/" + sys.argv[1]
@@ -159,51 +104,54 @@ if __name__ == "__main__":
         model = ModelMLP(layers_infos, input, dropout=dropout)
     model.set_params_vals(fold_exp+"/model.pkl")
 
+#    with open("best_model_keras.pkl", 'r') as f:
+#        keras_p = pkl.load(f)
+#    for param, param_vl in zip(model.params, keras_p):
+#        param.set_value(param_vl)
+#    cdf_ms, cdf0_1_ms, auc_ms = evaluate_mean_shape(
+#        path_mean_shap, l_infos, w, h, save_ims=False)
+    # Evaluation
     eval_fn = get_eval_fn(model)
-    # Unit test
-    unit_test(fold_exp+"/unit_imgs/", w, h, path_mean_shap, eval_fn, ds)
-    # Perf mean shape.
-    # TRAIN
-    if faceset == "helen":
-        tr_path = "../../inout/data/face/" + faceset +\
-            "_data/ch_tr_1800_0_0_0.pkl"
-    elif faceset == "lfpw":
-        tr_path = "../../inout/data/face/" + faceset +\
-            "_data/ch_tr_676_0_0_0.pkl"
-    print "TRAIN EVAL:"
-    with open(tr_path, 'r') as f:
-        tr_data = pkl.load(f)
-    list_minibatchs_train = split_data_to_minibatchs_eval(
-        {"x": tr_data["x"], "y":  tr_data['y']}, ts_batch_size)
-    cdf_ms, cdf0_1_ms, auc_ms = evaluate_mean_shape(path_mean_shap, l_infos,
-                                                    w, h, y=tr_data['y'],
-                                                    save_ims=False)
-    # Evaluation
-    error, output = evaluate_model(list_minibatchs_train, eval_fn)
-    print "Error (MSE) model train data", np.mean(error)
-    # VALID
-    vl_path = "../../inout/data/face/" + faceset + "_data/valid.pkl"
-    print "VALID EVAL:"
-    with open(vl_path, 'r') as f:
-        vl_data = pkl.load(f)
-    list_minibatchs_valid = split_data_to_minibatchs_eval(
-        {"x": vl_data["x"], "y":  vl_data['y']}, ts_batch_size)
-    cdf_ms, cdf0_1_ms, auc_ms = evaluate_mean_shape(path_mean_shap, l_infos,
-                                                    w, h, y=vl_data['y'],
-                                                    save_ims=False)
-    # Evaluation
-    error, output = evaluate_model(list_minibatchs_valid, eval_fn)
-    print "Error (MSE) model valid data", error
-    # TEST
-    cdf_ms, cdf0_1_ms, auc_ms = evaluate_mean_shape(path_mean_shap, l_infos,
-                                                    w, h, y=None,
-                                                    save_ims=False)
-    # Evaluation
     error, output = evaluate_model(list_minibatchs_vl, eval_fn)
+    # Mean shape
+    with open(path_mean_shap, 'r') as f:
+        mean_shape = pkl.load(f)
+    test_mean_shape_y = y * 0.
+    nbr_test = y.shape[0]
+    for i in xrange(nbr_test):
+        test_mean_shape_y[i] = mean_shape
 
+    #  Reproject the mean shape.
+    x = np.arange(0, border_x, dx)
+    test_mean_shape_y_reproj = ro.reproject_shape(
+        bboxesT, test_mean_shape_y, nfids)
+    test_mean_shape_y = ro.back_to_original_size_shapes(
+        set_y=test_mean_shape_y_reproj, bbox=bboxesT,
+        bbox_original=bboxesT_original)
+    mu1_mean_shape, muAll_mean_shape, fail_mean_shape, loss_mean_shape =\
+        ro.eval_regression(y, test_mean_shape_y, base_name)
+    cdf_loss_mean_shape, auc_loss_mean_shape = ro.calculate_auc_of_loss(
+        loss=loss_mean_shape, x=x, border_x=border_x, dx=dx)
+    print "auc_loss_mean_shape:", auc_loss_mean_shape
+    # ... Mean shape ends.
+    model_output_reproj = ro.reproject_shape(bboxesT, output, nfids)
+    # back to the original size
+    output = ro.back_to_original_size_shapes(
+        set_y=model_output_reproj, bbox=bboxesT,
+        bbox_original=bboxesT_original)
+    mu1, muAll, fail, loss = ro.eval_regression(y, output, base_name)
+    print '...Mean(loss)', np.mean(loss)
+
+    cdf_loss, auc_loss = ro.calculate_auc_of_loss(loss=loss, x=x,
+                                                  border_x=border_x, dx=dx)
+    print "auc_loss model: ", auc_loss
+    fig = ds.plot_cdf_model_and_meansh(
+        [cdf_loss, cdf_loss_mean_shape], tag, [mu1, mu1_mean_shape],
+        [auc_loss, auc_loss_mean_shape], bx, dx)
+    fig.savefig(fold_exp+"/cdf_curve.png", bbox_inches='tight')
+    sys.exit()
     # Calculate the face errors: CDF0.1, AUC
-    l_nrmse, figs = ds.calculate_face_errors_octave(output, l_infos, w, h,
-                                                    seg=True)
+    l_nrmse, figs = ds.calculate_face_errors_octave(output, l_infos, w, h)
     cdf, cdf0_1, auc = ds.calculate_auc_cdf(l_nrmse, bx, dx)
     print "\n Test error [model]: cdf0.1:", cdf0_1, " AUC:", auc
     # save results
@@ -223,7 +171,7 @@ if __name__ == "__main__":
     fig = ds.plot_cdf_model_and_meansh(
         [cdf, cdf_ms], tag, [cdf0_1, cdf0_1_ms], [auc, auc_ms], bx, dx)
     fig.savefig(fold_exp+"/cdf_curve.png", bbox_inches='tight')
-    # figs = sorted(figs, key=lambda kk: kk["nrmse"], reverse=True)
+    figs = sorted(figs, key=lambda kk: kk["nrmse"], reverse=True)
     i = 0
     for e in figs:
         print "\r Saving image: ", i,

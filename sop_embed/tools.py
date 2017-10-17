@@ -1,36 +1,11 @@
-# -*- coding: utf-8 -*-
-
-#    Copyright (c) 2016 Soufiane Belharbi, Clément Chatelain,
-#    Romain Hérault, Sébastien Adam (LITIS - EA 4108).
-#    All rights reserved.
-#
-#   This file is part of structured-output-ae.
-#
-#    structured-output-ae is free software: you can redistribute it and/or
-#    modify it under the terms of the Lesser GNU General Public License as
-#    published by the Free Software Foundation, either version 3 of the
-#    License, or (at your option) any later version.
-#
-#    structured-output-ae is distributed in the hope that it will be useful,
-#    but WITHOUT ANY WARRANTY; without even the implied warranty of
-#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#    GNU Lesser General Public License for more details.
-#
-#    You should have received a copy of the GNU General Public License
-#    along with structured-output-ae.
-#    If not, see <http://www.gnu.org/licenses/>.
-
-
-import sys
-sys.path.insert(1, "../")
-
 from sop_embed.layers import HiddenLayer
 
 import theano.tensor as T
+from theano.tensor.shared_randomstreams import RandomStreams
 import theano
 import numpy as np
 import os
-
+import sys
 import datetime as DT
 import matplotlib.pylab as plt
 import math
@@ -39,40 +14,49 @@ from scipy.misc import imresize
 import matplotlib.cm as cm
 import matplotlib.gridspec as gridspec
 from random import shuffle
+import yaml
 
 from sop_embed.layers import DropoutHiddenLayer
 from sop_embed.layers import dropout_from_layer
 from sop_embed.layers import DropoutIdentityHiddenLayer
+
+from sop_embed.extra import relu
+from sop_embed.extra import NonLinearity
+from sop_embed.extra import get_non_linearity_fn
+from sop_embed.extra import CostType
+from sop_embed.extra import sharedX_value
+from da import ConvolutionalAutoencoder
+from da import DeepConvolutionLayer
 
 
 floating = 10
 prec2 = "%."+str(floating)+"f"
 
 
-def relu(x):
-    return T.switch(x > 0, x, 0)
+#def relu(x):
+#    return T.switch(x > 0, x, 0)
+#
+#
+#class NonLinearity:
+#    RELU = "rectifier"
+#    TANH = "tanh"
+#    SIGMOID = "sigmoid"
+#
+#
+#def get_non_linearity_fn(nonlinearity):
+#        if nonlinearity == NonLinearity.SIGMOID:
+#            return T.nnet.sigmoid
+#        elif nonlinearity == NonLinearity.RELU:
+#            return relu
+#        elif nonlinearity == NonLinearity.TANH:
+#            return T.tanh
+#        elif nonlinearity is None:
+#            return None
 
 
-class NonLinearity:
-    RELU = "rectifier"
-    TANH = "tanh"
-    SIGMOID = "sigmoid"
-
-
-def get_non_linearity_fn(nonlinearity):
-        if nonlinearity == NonLinearity.SIGMOID:
-            return T.nnet.sigmoid
-        elif nonlinearity == NonLinearity.RELU:
-            return relu
-        elif nonlinearity == NonLinearity.TANH:
-            return T.tanh
-        elif nonlinearity is None:
-            return None
-
-
-class CostType:
-    MeanSquared = "MeanSquaredCost"
-    CrossEntropy = "CrossEntropy"
+#class CostType:
+#    MeanSquared = "MeanSquaredCost"
+#    CrossEntropy = "CrossEntropy"
 
 
 class ModelMLP(object):
@@ -93,6 +77,7 @@ class ModelMLP(object):
         self.params_until_code = None
         self.dropout = dropout
         self.ft_extractor = ft_extractor
+        self.state_train = theano.shared(0.)  # not used in this class.
         # catch the model's params in the memory WHITHOUT saving
         # them on disc because disc acces is so expensive on somme
         # servers.
@@ -175,6 +160,10 @@ class ModelMLP(object):
                 self.l2 += (l.W**2).sum()
                 if reg_bias:
                     self.l2 += (l.b**2).sum()
+        if self.l1 != 0.:
+            self.l1 *= sharedX_value(l1_reg, "l1_reg")
+        if self.l2 != 0.:
+            self.l2 *= sharedX_value(l2_reg, "l2_reg")
 
     def catch_params(self):
         self.catched_params = [param.get_value() for param in self.params]
@@ -212,6 +201,200 @@ class ModelMLP(object):
                 [l1[k] == l2[k]
                     for k in keys
                     for (l1, l2) in zip(layers_infos, self.layers_infos)])
+            for param, param_vl in zip(self.params, params_vl):
+                param.set_value(param_vl)
+
+
+class ModelCNN(object):
+    def __init__(self, layers_infos, input, crop_size, l1_reg=0., l2_reg=0.,
+                 tag="", reg_bias=False, dropout=None, ft_extractor=None,
+                 id_code=None, corruption_level=0., rnd=None):
+        assert ft_extractor is None
+        assert id_code is None
+        self.crop_size = crop_size
+        self.layers_infos = []
+        # things to keep:
+        dic_keys = ["n_in", "n_out", "activation", "type", "filter_shape",
+                    "padding", "stride", "poolsize", "ignore_border", "mode",
+                    "ratio", "use_1D_kernel"]
+        self.dic_keys = dic_keys
+        for l in layers_infos:
+            tmp = {}
+            if "type" in l.keys():
+                assert l["type"] == "deep_conv_ae_in"
+                sub_l = l["layer"]
+                for ml in sub_l:
+                    for k in ml.keys():
+                        if k in dic_keys:
+                            tmp[k] = ml[k]
+                    self.layers_infos.append(tmp)
+            else:
+                for k in l.keys():
+                    if k in dic_keys:
+                        tmp[k] = l[k]
+                self.layers_infos.append(tmp)
+        # For recreating the network.
+        config_arch = []
+        for l in layers_infos:
+            if "type" in l.keys():  # deep in conv ae.
+                assert l["type"] == "deep_conv_ae_in"
+                tmp = []
+                for subl in l["layer"]:
+                    tmp1 = {}
+                    for k in subl.keys():
+                        if k not in ["W", "b", "rng"]:
+                            tmp1[k] = subl[k]
+                        else:
+                            tmp1[k] = None
+                    tmp.append(tmp1)
+                config_arch.append({"type": "deep_conv_ae_in",
+                                    "layer": tmp})
+            else:
+                tmp = {}
+                for k in l.keys():
+                    if k not in ["W", "b", "rng"]:
+                        tmp[k] = l[k]
+                    else:
+                        tmp[k] = None
+                config_arch.append(tmp)
+
+        self.config_arch = config_arch
+
+        if dropout is None:
+            dropout = [0. for i in range(len(layers_infos))]
+        self.tag = tag
+        self.layers = []
+        self.layers_dropout = []
+        self.layer_dropout_code = None
+        self.layer_code = None
+        self.params_until_code = None
+        self.dropout = dropout
+        self.ft_extractor = ft_extractor
+        if rnd is None:
+            rnd = np.random.RandomState(1231)
+        self.theano_rng = RandomStreams(rnd.randint(2 ** 30))
+        # catch the model's params in the memory WHITHOUT saving
+        # them on disc because disc acces is so expensive on somme
+        # servers.
+        self.catched_params = []
+        input_dropout = input
+        if ft_extractor is None:
+            self.x = input
+        else:
+            self.x = self.ft_extractor.inputs
+            input_dropout = self.ft_extractor.output_dropout
+        self.trg = T.fmatrix("y")
+        self.params = []
+        # a hack to use input noise to the supervised task
+        # without duplicating the network: input_train, input_valid.
+        self.corruption_level = corruption_level
+        self.state_train = theano.shared(np.float32(1.))
+        self.one = theano.shared(np.float32(1.))
+        if self.corruption_level == 0.:
+            input_layer = self.x
+        else:
+            input_layer = self.theano_rng.binomial(
+                    self.x.shape, n=1, p=1-self.corruption_level,
+                    dtype=theano.config.floatX) * self.x * self.state_train +\
+                    (self.one - self.state_train) * self.x
+
+        for layer in layers_infos:
+            if "type" in layer.keys():  # deep conv ae.
+                if layer["type"] == "deep_conv_ae_in":
+                    self.layers.append(
+                        DeepConvolutionLayer(input=input_layer,
+                                             layers=layer["layer"],
+                                             crop_size=crop_size))
+                    input_layer = self.layers[-1].output.flatten(2)
+            else:
+                self.layers.append(
+                    HiddenLayer(
+                        input=input_layer,
+                        n_in=layer["n_in"],
+                        n_out=layer["n_out"],
+                        W=layer["W"],
+                        b=layer["b"],
+                        activation=get_non_linearity_fn(layer["activation"]),
+                        rng=layer["rng"]
+                        )
+                )
+                input_layer = self.layers[-1].output
+            self.params += self.layers[-1].params
+
+        self.output = self.layers[-1].output
+        self.output_dropout = self.layers[-1].output  # no dropout.
+        self.l1 = 0.
+        self.l2 = 0.
+        if self.ft_extractor is not None:
+            self.params.extend(self.ft_extractor.params)
+        nparams = np.sum(
+            [p.get_value().flatten().shape[0] for p in self.params])
+
+        print "model contains %i parameters" % nparams
+        # dump params for debug
+#        todump = []
+#        for p in self.params:
+#            todump.append(p.get_value())
+#        with open("paramsmlp.pkl", "w") as f:
+#            pkl.dump(todump, f, protocol=pkl.HIGHEST_PROTOCOL)
+
+        for param in self.params:
+            if ("w" in param.name) or ("W" in param.name):
+                if l1_reg != 0.:
+                    self.l1 += abs(param).sum()
+                if l2_reg != 0.:
+                    self.l2 += (param**2).sum()
+            elif ("b" in param.name) or ("B" in param.name):
+                if l1_reg != 0. and reg_bias:
+                    self.l1 += abs(param).sum()
+                if l2_reg != 0. and reg_bias:
+                    self.l2 += (param**2).sum()
+        if self.l1 != 0.:
+            self.l1 *= sharedX_value(l1_reg, "l1_reg")
+            print "Performing l1 reg. Lambda=", l1_reg
+        if self.l2 != 0.:
+            self.l2 *= sharedX_value(l2_reg, "l2_reg")
+            print "Performing l2 reg. Lambda=", l2_reg
+
+    def catch_params(self):
+        self.catched_params = [param.get_value() for param in self.params]
+
+    def save_params(self, weights_file, catched=False):
+        """Save the model's params."""
+        with open(weights_file, "w") as f:
+            if catched:
+                if self.catched_params != []:
+                    params_vl = self.catched_params
+                else:
+                    raise ValueError(
+                        "You asked to save catched params," +
+                        "but you didn't catch any!!!!!!!")
+            else:
+                params_vl = [param.get_value() for param in self.params]
+            ft_extractor = False
+            if self.ft_extractor is not None:
+                ft_extractor = True
+            stuff = {"layers_infos": self.layers_infos,
+                     "params_vl": params_vl,
+                     "tag": self.tag,
+                     "dropout": self.dropout,
+                     "ft_extractor": ft_extractor,
+                     "dic_keys": self.dic_keys,
+                     "config_arch": self.config_arch,
+                     "crop_size": self.crop_size}
+            pkl.dump(stuff, f, protocol=pkl.HIGHEST_PROTOCOL)
+
+    def set_params_vals(self, weights_file):
+        """Set the model's params."""
+        with open(weights_file, "r") as f:
+            stuff = pkl.load(f)
+            layers_infos, params_vl = stuff["layers_infos"], stuff["params_vl"]
+            # Stuff to check
+            keys = stuff["dic_keys"]
+            for (l1, l2) in zip(layers_infos, self.layers_infos):
+                for k in keys:
+                    if k in l1.keys():
+                        assert l1[k] == l2[k]
             for param, param_vl in zip(self.params, params_vl):
                 param.set_value(param_vl)
 
@@ -480,20 +663,6 @@ def floatX(arr):
     return np.asarray(arr, dtype=theano.config.floatX)
 
 
-def sharedX_value(value, name=None, borrow=None, dtype=None):
-    """Share a single value after transforming it to floatX type.
-
-    value: a value
-    name: variable name (str)
-    borrow: boolean
-    dtype: the type of the value when shared. default: theano.config.floatX
-    """
-    if dtype is None:
-        dtype = theano.config.floatX
-    return theano.shared(
-        theano._asarray(value, dtype=dtype), name=name, borrow=borrow)
-
-
 def sharedX_mtx(mtx, name=None, borrow=None, dtype=None):
     """Share a matrix value with type theano.confgig.floatX.
     Parameters:
@@ -553,10 +722,10 @@ def get_cost(aes, l, eye=True):
     """
     costs = []
     for ae, i in zip(aes, range(len(aes))):
-        if len(l) > 1:
-            costs.append(l[i] * ae.get_train_cost(face=eye)[0])
+        if isinstance(ae, ConvolutionalAutoencoder):
+            costs.append(l[i] * ae.get_train_cost()[0])
         else:
-            costs.append(l[0] * ae.get_train_cost(face=eye)[0])
+            costs.append(l[i] * ae.get_train_cost(face=eye)[0])
     cost = None
     if costs not in [[], None]:
         cost = reduce(lambda x, y: x + y, costs)
@@ -647,13 +816,14 @@ def prepare_updates(model, aes_in, aes_out, cost, cost_in, cost_out, cost_sup,
 
     # All params (unique)
     all_params = params_sup
+    # Reviewer 1: Q1.
     for l in aes_in:
         all_params += [l.hidden.b_prime]
 
     for l in aes_out:
         all_params += [l.hidden.b]
 
-    grads_all = T.grad(T.mean(cost), model.params)
+    grads_all = T.grad(T.mean(cost), all_params)
     if cost_in is not None:
         grads_in = T.grad(T.mean(cost_in), params_in)
     if cost_out is not None:
@@ -716,25 +886,30 @@ def prepare_updates(model, aes_in, aes_out, cost, cost_in, cost_out, cost_sup,
     else:
         x_train = T.matrix('x_train')
 
+    state_train = T.scalar(dtype=theano.config.floatX)
     y_train = T.matrix('y_train')
-    theano_args = [x_train, y_train]
+    theano_args = [x_train, y_train, theano.In(state_train, value=1.)]
 
     # compile the update theano functions
     # case 1: only supervised data
     if (cost_in is None) and (cost_out is None):
-        givens = {model.x: x_train, model.trg: y_train}
+        givens = {model.x: x_train, model.state_train: state_train,
+                  model.trg: y_train}
 
     if (cost_in is not None) and (cost_out is None):
         givens = {
-            model.x: x_train, model.trg: y_train, aes_in[0].input: x_train}
+            model.x: x_train, model.state_train: state_train,
+            model.trg: y_train, aes_in[0].input: x_train}
 
     if (cost_in is None) and (cost_out is not None):
         givens = {
-            model.x: x_train, model.trg: y_train, aes_out[0].input: y_train}
+            model.x: x_train, model.state_train: state_train,
+            model.trg: y_train, aes_out[0].input: y_train}
 
     if (cost_in is not None) and (cost_out is not None):
         givens = {
-            model.x: x_train, model.trg: y_train,
+            model.x: x_train, model.state_train: state_train,
+            model.trg: y_train,
             aes_in[0].input: x_train, aes_out[0].input: y_train}
 
     sgd_update_all = theano.function(
@@ -756,7 +931,7 @@ def prepare_updates(model, aes_in, aes_out, cost, cost_in, cost_out, cost_sup,
         # case 2: only unsupervised data in
         sgd_update_in = theano.function(
             inputs=[x_train],
-            outputs=[cost_in],
+            outputs=[T.mean(cost_in)],
             updates=updates_in,
             givens={aes_in[0].input: x_train},
             on_unused_input='ignore')
@@ -766,7 +941,7 @@ def prepare_updates(model, aes_in, aes_out, cost, cost_in, cost_out, cost_sup,
         # case 3: only unsupervised data out
         sgd_update_out = theano.function(
             inputs=[y_train],
-            outputs=[cost_out],
+            outputs=[T.mean(cost_out)],
             updates=updates_out,
             givens={aes_out[0].input: y_train}, on_unused_input='ignore')
 
@@ -829,6 +1004,7 @@ def theano_fns(model,
 
     # Total cost
     embed_cost = sharedX_value(0.)
+    # Reviwer 1: Q1.
     if cost_in is not None:
         embed_cost += cost_in
     if cost_out is not None:
@@ -836,6 +1012,7 @@ def theano_fns(model,
     if cost_code is not None:
         embed_cost += l_code * cost_code
     embed_cost += l_sup * cost_net
+    # embed_cost = l_sup * cost_net
 
     # Train fn: Updates
     train_updates = prepare_updates(
@@ -848,14 +1025,16 @@ def theano_fns(model,
     else:
         x = T.fmatrix("x")
     y = T.fmatrix("y")
+    state_train = T.scalar(dtype=theano.config.floatX)
 
-    theano_arg_vl = [x, y]
     output_fn_vl = [error, model.output]
 
     eval_fn = theano.function(
-        theano_arg_vl, output_fn_vl,
+        [x, y, theano.In(state_train, value=0.)], output_fn_vl,
         givens={model.x: x,
-                model.trg: y})
+                model.state_train: state_train,
+                model.trg: y},
+        on_unused_input='ignore')
 
     return train_updates, eval_fn
 
@@ -903,6 +1082,26 @@ def evaluate_model(list_minibatchs_vl, eval_fn):
             error = np.vstack((error, error_mn))
             output = np.vstack((output, output_mn))
     return error, output
+
+
+def evaluate_model_3D_unsup(list_minibatchs_vl, eval_fn):
+    """Evalute the model over a set."""
+    error, output, code = None, None, None
+    for mn_vl in list_minibatchs_vl:
+        x = theano.shared(
+            mn_vl['x'], borrow=True).get_value(borrow=True)
+
+        [error_mn, output_mn, code_mn] = eval_fn(x)
+        if error is None:
+            error = error_mn
+            output = output_mn
+            code = code_mn
+        else:
+            error = np.vstack((error, error_mn))
+            output = np.vstack((output, output_mn))
+            code = np.vstack((code, code_mn))
+
+    return error, output, code
 
 
 def plot_fig(values, title, x_str, y_str, path, best_iter, std_vals=None):
@@ -1628,6 +1827,36 @@ def plot_x_y_yhat(x, y, y_hat, xsz, ysz, binz=False):
         plt.title(ti)
 
     return f
+
+
+def plot_x_x_yhat(x, x_hat):
+    """Plot x, y and y_hat side by side."""
+    plt.close("all")
+    f = plt.figure()  # figsize=(15, 10.8), dpi=300
+    gs = gridspec.GridSpec(1, 2)
+    ims = [x, x_hat]
+    tils = [
+        "xin:" + str(x.shape[0]) + "x" + str(x.shape[1]),
+        "xout:" + str(x.shape[1]) + "x" + str(x_hat.shape[1])]
+    for n, ti in zip([0, 1], tils):
+        f.add_subplot(gs[n])
+        plt.imshow(ims[n], cmap=cm.Greys_r)
+        plt.title(ti)
+        ax = f.gca()
+        ax.set_axis_off()
+
+    return f
+
+
+def plot_all_x_xhat(X, Xhat, nbr, path):
+    if nbr > X.shape[0]:
+        nbr = X.shape[0]
+    for i in range(nbr):
+        x, x_hat = X[i], Xhat[i]
+        x = x.reshape((x.shape[1], x.shape[2]))
+        x_hat = x_hat.reshape((x_hat.shape[1], x_hat.shape[2]))
+        f = plot_x_x_yhat(x, x_hat)
+        f.savefig(path + "/" + str(i) + ".png", bbox_inches='tight')
 
 
 def plot_all_x_y_yhat(x, y, yhat, xsz, ysz, fd, binz=False):

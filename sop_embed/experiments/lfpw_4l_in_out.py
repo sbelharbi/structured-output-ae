@@ -1,29 +1,3 @@
-# -*- coding: utf-8 -*-
-
-#    Copyright (c) 2016 Soufiane Belharbi, Clément Chatelain,
-#    Romain Hérault, Sébastien Adam (LITIS - EA 4108).
-#    All rights reserved.
-#
-#   This file is part of structured-output-ae.
-#
-#    structured-output-ae is free software: you can redistribute it and/or
-#    modify it under the terms of the Lesser GNU General Public License as
-#    published by the Free Software Foundation, either version 3 of the
-#    License, or (at your option) any later version.
-#
-#    structured-output-ae is distributed in the hope that it will be useful,
-#    but WITHOUT ANY WARRANTY; without even the implied warranty of
-#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#    GNU Lesser General Public License for more details.
-#
-#    You should have received a copy of the GNU General Public License
-#    along with structured-output-ae.
-#    If not, see <http://www.gnu.org/licenses/>.
-
-
-import sys
-sys.path.insert(1, "../../")
-
 from sop_embed.da import DenoisingAutoencoder
 from sop_embed.tools import NonLinearity
 from sop_embed.tools import CostType
@@ -51,6 +25,7 @@ import cPickle as pkl
 import datetime as DT
 import os
 import inspect
+import sys
 import shutil
 from random import shuffle
 
@@ -99,7 +74,7 @@ if __name__ == "__main__":
     l_ch_tr = [
         fd_data + id_data + "_" + str(i) + ".pkl" for i in range(0, 1)]
 
-    time_exp = DT.datetime.now().strftime('%m_%d_%Y_%H_%M')
+    time_exp = DT.datetime.now().strftime('%m_%d_%Y_%H_%M_%s')
     fold_exp = "../../exps/" + faceset + "_" + time_exp
     if not os.path.exists(fold_exp):
         os.makedirs(fold_exp)
@@ -234,7 +209,7 @@ if __name__ == "__main__":
     id_code = None
     model = ModelMLP(layers, input, l1_reg=0., l2_reg=0., reg_bias=False,
                      dropout=dropout, id_code=id_code)
-    aes_in = [dae_l0, dae_l1]
+    aes_in = [dae_l0]
     aes_out = [dae_l3]
     if id_code is not None:
         assert aes_out != []
@@ -378,6 +353,14 @@ if __name__ == "__main__":
 #            print "lr:", lr.get_value()
         i += 1
         del stats
+    # Eval
+    cmd = "python evaluate_face_new_data.py " + str(faceset) + " " +\
+        str(fold_exp) + " mlp"
+#    with open("./" + str(time_exp) + ".py", "w") as python_file:
+#        python_file.write("import os \n")
+#        cmd2 = 'os.system("' + cmd + '")'
+#        python_file.write(cmd2)
+    os.system(cmd)
 #    # std_data = standardize(x_data)
 #    std_data = np.asarray(x_data, dtype=theano.config.floatX)
 #
