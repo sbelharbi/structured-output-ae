@@ -1,4 +1,4 @@
-The file `reconstruction-deep-conv-ae.tar.gz` contains the image and its reconstruction using a deep convolutional autoencoder. Please see the code in the file: `../../sop_embed/experiments/debug_deep_conv_autoenc.py`. This is the architecture we used (not optimized):
+The file `reconstruction-deep-conv-ae.tar.gz` contains the image and its reconstruction for LFPW dataset using a deep convolutional autoencoder. Please see the code in the file: `../../sop_embed/experiments/debug_deep_conv_autoenc.py`. This is the architecture we used (not optimized):
 ```python
 # Deep conv.ae
 
