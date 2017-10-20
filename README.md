@@ -3,7 +3,16 @@ This repository contains the code used for the paper:
 
 `Multi-task Learning for Structured Output Prediction`, S.Belharbi, R.Hérault, C.Chatelain, S.Adam. [ArXiv](https://arxiv.org/abs/1504.07550).
 ## New:
-`Implementation of deep convolutional auto-encoder using transposed convolution "deconvolution". Check the reconstructed images of LFPW in here:`[reconstruction-deep-conv-ae.tar.gz](https://github.com/sbelharbi/structured-output-ae/tree/master/inout/deep-conv-ae-lfpw-reconstruction-image/reconstruction-deep-conv-ae.tar.gz).
+> Implementation of deep convolutional auto-encoder using transposed convolution "deconvolution". Check the reconstructed images of LFPW in here:   [deep-conv-ae-lfpw-reconstruction-image](https://github.com/sbelharbi/structured-output-ae/tree/master/inout/deep-conv-ae-lfpw-reconstruction-image).
+
+> Examples of reconstructed images (LFPW test set): images size 50x50
+
+> ![im1](./inout/deep-conv-ae-lfpw-reconstruction-image/0.png)
+
+> ![im2](./inout/deep-conv-ae-lfpw-reconstruction-image/14.png)
+
+> ![im3](./inout/deep-conv-ae-lfpw-reconstruction-image/21.png)
+
 
 Please cite this paper if you use the code in this repository as part of a
 published research project.
