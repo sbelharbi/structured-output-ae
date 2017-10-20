@@ -7,12 +7,14 @@ This repository contains the code used for the paper:
 
 > Examples of reconstructed images (LFPW test set): images size 50x50
 
-> ![im1](./inout/deep-conv-ae-lfpw-reconstruction-image/0.png)
+> <img src="./inout/deep-conv-ae-lfpw-reconstruction-image/0.png" alt="Drawing" style="width: 200px;"/>
+<img src="./inout/deep-conv-ae-lfpw-reconstruction-image/10.png" alt="Drawing" style="width: 200px;"/>
 
-> ![im2](./inout/deep-conv-ae-lfpw-reconstruction-image/14.png)
+><img src="./inout/deep-conv-ae-lfpw-reconstruction-image/11.png" alt="Drawing" style="width: 200px;"/>
+<img src="./inout/deep-conv-ae-lfpw-reconstruction-image/14.png" alt="Drawing" style="width: 200px;"/>
 
-> ![im3](./inout/deep-conv-ae-lfpw-reconstruction-image/21.png)
-
+><img src="./inout/deep-conv-ae-lfpw-reconstruction-image/19.png" alt="Drawing" style="width: 200px;"/>
+<img src="./inout/deep-conv-ae-lfpw-reconstruction-image/21.png" alt="Drawing" style="width: 200px;"/>
 
 Please cite this paper if you use the code in this repository as part of a
 published research project.
