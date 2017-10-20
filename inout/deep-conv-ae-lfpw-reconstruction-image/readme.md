@@ -1,20 +1,20 @@
 The file `reconstruction-deep-conv-ae.tar.gz` contains the image and its reconstruction for LFPW dataset using a deep convolutional autoencoder.
 Here some examples of reconstructed images (LFPW test set): images size 50x50
 
-<img src="0.png" alt="Drawing" style="width: 200px;"/>
-<img src="10.png" alt="Drawing" style="width: 200px;"/>
+<img src="0.png" alt="Drawing" style="width: 100px;"/>
+<img src="10.png" alt="Drawing" style="width: 100px;"/>
 
-<img src="11.png" alt="Drawing" style="width: 200px;"/>
-<img src="14.png" alt="Drawing" style="width: 200px;"/>
+<img src="11.png" alt="Drawing" style="width: 100px;"/>
+<img src="14.png" alt="Drawing" style="width: 100px;"/>
 
-<img src="19.png" alt="Drawing" style="width: 200px;"/>
-<img src="21.png" alt="Drawing" style="width: 200px;"/>
+<img src="19.png" alt="Drawing" style="width: 100px;"/>
+<img src="21.png" alt="Drawing" style="width: 100px;"/>
 
-<img src="25.png" alt="Drawing" style="width: 200px;"/>
-<img src="58.png" alt="Drawing" style="width: 200px;"/>
+<img src="25.png" alt="Drawing" style="width: 100px;"/>
+<img src="58.png" alt="Drawing" style="width: 100px;"/>
 
-<img src="63.png" alt="Drawing" style="width: 200px;"/>
-<img src="94.png" alt="Drawing" style="width: 200px;"/>
+<img src="63.png" alt="Drawing" style="width: 100px;"/>
+<img src="94.png" alt="Drawing" style="width: 100px;"/>
 
 Please check the code in the file: [`debug_deep_conv_autoenc.py`](https://github.com/sbelharbi/structured-output-ae/blob/master/sop_embed/experiments/debug_deep_conv_autoenc.py). This is the architecture we used (not optimized):
 ```python
