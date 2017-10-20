@@ -2,7 +2,7 @@ The file `reconstruction-deep-conv-ae.tar.gz` contains the image and its reconst
 Here some examples of reconstructed images (LFPW test set): images size 50x50
 
 <img src="0.png" alt="Drawing" width="300" height="150"/>
-<img src="10.png" alt="Drawing" style="width: 100px;"/>
+<img src="10.png" alt="Drawing" width="300" height="150"/>
 
 <img src="11.png" alt="Drawing" style="width: 100px;"/>
 <img src="14.png" alt="Drawing" style="width: 100px;"/>
