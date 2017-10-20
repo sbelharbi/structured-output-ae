@@ -3,17 +3,13 @@ Here some examples of reconstructed images (LFPW test set): images size 50x50
 
 <img src="0.png" alt="Drawing" width="300" height="150"/> <img src="10.png" alt="Drawing" width="300" height="150"/>
 
-<img src="11.png" alt="Drawing" style="width: 100px;"/>
-<img src="14.png" alt="Drawing" style="width: 100px;"/>
+<img src="11.png" alt="Drawing" width="300" height="150"/> <img src="14.png" alt="Drawing" width="300" height="150"/>
 
-<img src="19.png" alt="Drawing" style="width: 100px;"/>
-<img src="21.png" alt="Drawing" style="width: 100px;"/>
+<img src="19.png" alt="Drawing" width="300" height="150"/> <img src="21.png" alt="Drawing" width="300" height="150"/>
 
-<img src="25.png" alt="Drawing" style="width: 100px;"/>
-<img src="58.png" alt="Drawing" style="width: 100px;"/>
+<img src="25.png" alt="Drawing" width="300" height="150"/> <img src="58.png" alt="Drawing" width="300" height="150"/>
 
-<img src="63.png" alt="Drawing" style="width: 100px;"/>
-<img src="94.png" alt="Drawing" style="width: 100px;"/>
+<img src="63.png" alt="Drawing" width="300" height="150"/> <img src="94.png" alt="Drawing" width="300" height="150"/>
 
 Please check the code in the file: [`debug_deep_conv_autoenc.py`](https://github.com/sbelharbi/structured-output-ae/blob/master/sop_embed/experiments/debug_deep_conv_autoenc.py). This is the architecture we used (not optimized):
 ```python
