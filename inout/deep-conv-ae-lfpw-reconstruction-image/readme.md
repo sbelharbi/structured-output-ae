@@ -1,7 +1,7 @@
 The file `reconstruction-deep-conv-ae.tar.gz` contains the image and its reconstruction for LFPW dataset using a deep convolutional autoencoder.
 Here some examples of reconstructed images (LFPW test set): images size 50x50
 
-<img src="0.png" alt="Drawing" style="width: 100px;"/>
+<img src="0.png" alt="Drawing" width="100" height="50" />
 <img src="10.png" alt="Drawing" style="width: 100px;"/>
 
 <img src="11.png" alt="Drawing" style="width: 100px;"/>
