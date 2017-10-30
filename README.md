@@ -1,11 +1,11 @@
-# Multi-task Learning for Structured Output Prediction
+# Deep Neural Networks Regularization for Structured Output Prediction
 This repository contains the code used for the paper: 
 
-`Multi-task Learning for Structured Output Prediction`, S.Belharbi, R.Hérault, C.Chatelain, S.Adam. [ArXiv](https://arxiv.org/abs/1504.07550).
+`Deep Neural Networks Regularization for Structured Output Prediction`, S.Belharbi, R.Hérault, C.Chatelain, S.Adam.  [ArXiv](https://arxiv.org/abs/1504.07550).
 ## New:
 > Implementation of deep convolutional auto-encoder using transposed convolution "deconvolution".
 
-Please check the code in the file: [`debug_deep_conv_autoenc.py`](https://github.com/sbelharbi/structured-output-ae/blob/master/sop_embed/experiments/debug_deep_conv_autoenc.py). This is the architecture we used (not optimized):
+Please check the code in the file: [`debug_deep_conv_autoenc.py`](https://github.com/sbelharbi/structured-output-ae/blob/master/sop_embed/experiments/debug_deep_conv_autoenc.py). This is the architecture we used:
 ```python
 # Deep conv.ae
 
