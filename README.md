@@ -1,7 +1,7 @@
 # Deep Neural Networks Regularization for Structured Output Prediction
 This repository contains the code used for the paper: 
 
-`Deep Neural Networks Regularization for Structured Output Prediction`, S.Belharbi, R.Hérault, C.Chatelain, S.Adam.  [ArXiv](https://arxiv.org/abs/1504.07550).
+`Deep Neural Networks Regularization for Structured Output Prediction`, S.Belharbi, R.Hérault, C.Chatelain, S.Adam. 2017.   [ArXiv](https://arxiv.org/abs/1504.07550).
 ## New:
 > Implementation of deep convolutional auto-encoder using transposed convolution "deconvolution".
 
